@@ -1,8 +1,7 @@
-python-telegram-bot==21.6
-fastapi==0.115.0
-uvicorn==0.30.6
+import os
 import sqlite3
 from datetime import datetime, timedelta
+
 from fastapi import FastAPI, Request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -21,20 +20,23 @@ BKASH_NUMBER = "01642012385"
 NAGAD_NUMBER = "01788098356"
 DB_PATH = "shop.db"
 
-TOKEN = os.environ["8315570920:AAEVbhuUhCFpJYVW8Ls-92H2VzCn1oW7Reg"]
-PUBLIC_URL = os.environ["PUBLIC_URL"].rstrip("/")
-ADMIN_CHAT_ID = int(os.environ["8315570920"]
+# ENV (IMPORTANT)
+TOKEN = "8315570920"
+os.environ["BOT_TOKEN"]
+PUBLIC_URL =
+os.environ["PUBLIC_URL"].rstrip("/")
+ADMIN_CHAT_ID = "8273597769"
+int(os.environ["ADMIN_CHAT_ID"])
+
 # Checkout states
 NAME, PHONE, PAYMENT, TRX = range(4)
 
 api = FastAPI()
 tg_app = Application.builder().token(TOKEN).build()
 
-
 # ===================== DB HELPERS =====================
 def db():
     return sqlite3.connect(DB_PATH)
-
 
 def init_db():
     con = db()
@@ -101,7 +103,6 @@ def init_db():
 
     con.close()
 
-
 def set_live_chat(user_id: int, enabled: bool):
     con = db()
     cur = con.cursor()
@@ -116,7 +117,6 @@ def set_live_chat(user_id: int, enabled: bool):
     con.commit()
     con.close()
 
-
 def is_live_chat(user_id: int) -> bool:
     con = db()
     cur = con.cursor()
@@ -125,15 +125,13 @@ def is_live_chat(user_id: int) -> bool:
     con.close()
     return bool(row and row[0] == 1)
 
-
 # ===================== UI HELPERS =====================
 def money(n: int) -> str:
     return f"{n}৳"
 
-
+# ✅ FIXED: admin check by USER ID
 def is_admin(update: Update) -> bool:
-    return update.effective_chat and update.effective_chat.id == ADMIN_CHAT_ID
-
+    return update.effective_user and update.effective_user.id == ADMIN_CHAT_ID
 
 def kb_main():
     return InlineKeyboardMarkup(
@@ -143,7 +141,6 @@ def kb_main():
             [InlineKeyboardButton("ℹ️ Help", callback_data="help")],
         ]
     )
-
 
 def kb_shop():
     con = db()
@@ -157,7 +154,6 @@ def kb_shop():
         buttons.append([InlineKeyboardButton(f"{name} — {money(price)}", callback_data=f"p:{pid}")])
     buttons.append([InlineKeyboardButton("⬅ Back", callback_data="back")])
     return InlineKeyboardMarkup(buttons)
-
 
 def kb_admin_panel():
     return InlineKeyboardMarkup(
@@ -173,7 +169,6 @@ def kb_admin_panel():
         ]
     )
 
-
 # ===================== USER COMMANDS =====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_live_chat(update.effective_user.id, False)
@@ -181,7 +176,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👋 Welcome to {SHOP_NAME}\nSelect an option below:",
         reply_markup=kb_main(),
     )
-
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
@@ -195,11 +189,9 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, reply_markup=kb_main())
 
-
 async def endchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_live_chat(update.effective_user.id, False)
     await update.message.reply_text("✅ Live Chat বন্ধ করা হয়েছে।", reply_markup=kb_main())
-
 
 # ===================== ADMIN PANEL COMMANDS =====================
 async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -208,23 +200,20 @@ async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text("🧰 Admin Panel:", reply_markup=kb_admin_panel())
 
-
 async def activate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
         await update.message.reply_text("❌ Admin only.")
         return
     msg = (
-        "✅ Activation (Render)\n\n"
+        "✅ Activation\n\n"
         "Start Command:\n"
-        "uvicorn index:api --host 0.0.0.0 --port $PORT\n\n"
+        "uvicorn main:api --host 0.0.0.0 --port 8000\n\n"
         "ENV vars:\n"
         "BOT_TOKEN\nADMIN_CHAT_ID\nPUBLIC_URL\n\n"
         "Webhook URL হবে:\n"
-        f"{PUBLIC_URL}/webhook\n\n"
-        "24/7 (Free): UptimeRobot দিয়ে আপনার Render URL ping করুন প্রতি 5 মিনিটে।"
+        f"{PUBLIC_URL}/webhook\n"
     )
     await update.message.reply_text(msg)
-
 
 async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -246,8 +235,7 @@ async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(f"#{oid} | User:{uid} | {pname} | {money(total)} | Exp:{expiry} | {created}")
     await update.message.reply_text("\n".join(lines))
 
-
-# ===================== BUTTON ROUTER (NO BUY, NO PAY) =====================
+# ===================== BUTTON ROUTER =====================
 async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -283,7 +271,6 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Admin panel buttons (templates/list)
     if data.startswith("admin:"):
         if uid != ADMIN_CHAT_ID:
             await q.edit_message_text("❌ Admin only.")
@@ -305,31 +292,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await q.edit_message_text("\n".join(lines))
             return
 
-        if action == "addp":
-            await q.edit_message_text(
-                "/addp Name | price | stock | duration_days | description\n"
-                "Example:\n/addp Netflix (1 Month) | 350 | 50 | 30 | Netflix premium"
-            )
-            return
-
-        if action == "price":
-            await q.edit_message_text("/price <product_id> <new_price>\nExample:\n/price 1 550")
-            return
-
-        if action == "stock":
-            await q.edit_message_text("/stock <product_id> <new_stock>\nExample:\n/stock 1 999")
-            return
-
-        if action == "duration":
-            await q.edit_message_text("/duration <product_id> <days>\nExample:\n/duration 1 60")
-            return
-
-        if action == "delp":
-            await q.edit_message_text("/delp <product_id>\nExample:\n/delp 7")
-            return
-
         if action == "pending":
-            # (same as /pending but via button)
             con = db()
             cur = con.cursor()
             cur.execute(
@@ -348,13 +311,12 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if action == "activate":
             await q.edit_message_text(
-                "Start Command:\nuvicorn index:api --host 0.0.0.0 --port $PORT\n\n"
+                "Start Command:\nuvicorn main:api --host 0.0.0.0 --port 8000\n\n"
                 "ENV:\nBOT_TOKEN\nADMIN_CHAT_ID\nPUBLIC_URL\n\n"
                 f"Webhook: {PUBLIC_URL}/webhook"
             )
             return
 
-    # Product detail (shows Buy button)
     if data.startswith("p:"):
         pid = int(data.split(":")[1])
         con = db()
@@ -383,21 +345,19 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         kb = InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("💳 Buy Now", callback_data="buy")],  # handled by ConversationHandler
+                [InlineKeyboardButton("💳 Buy Now", callback_data="buy")],
                 [InlineKeyboardButton("⬅ Back to Shop", callback_data="shop")],
             ]
         )
         await q.edit_message_text(text, reply_markup=kb)
         return
 
-
-# ===================== CHECKOUT ENTRY (FIXED) =====================
+# ===================== CHECKOUT =====================
 async def buy_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     uid = q.from_user.id
 
-    # Must have selected product
     product = context.user_data.get("selected_product")
     if not product:
         await q.edit_message_text("❌ Product select করা হয়নি। Shop থেকে সিলেক্ট করুন।", reply_markup=kb_shop())
@@ -407,16 +367,13 @@ async def buy_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.edit_message_text("✅ Checkout শুরু\nআপনার নাম লিখুন:")
     return NAME
 
-
 async def checkout_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["cust_name"] = update.message.text.strip()
     await update.message.reply_text("📞 আপনার ফোন নম্বর লিখুন:")
     return PHONE
 
-
 async def checkout_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["cust_phone"] = update.message.text.strip()
-
     kb = InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("bKash", callback_data="pay:bkash"), InlineKeyboardButton("Nagad", callback_data="pay:nagad")],
@@ -428,7 +385,6 @@ async def checkout_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=kb,
     )
     return PAYMENT
-
 
 async def checkout_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -448,7 +404,6 @@ async def checkout_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return TRX
 
-
 async def checkout_trx(update: Update, context: ContextTypes.DEFAULT_TYPE):
     trx = update.message.text.strip()
     if len(trx) < 4:
@@ -465,7 +420,6 @@ async def checkout_trx(update: Update, context: ContextTypes.DEFAULT_TYPE):
     price = int(product["price"])
     duration = int(product["duration"])
 
-    # Reduce stock
     con = db()
     cur = con.cursor()
     cur.execute("SELECT stock FROM products WHERE id=?", (pid,))
@@ -526,7 +480,6 @@ async def checkout_trx(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
-
 # ===================== LIVE CHAT FORWARD =====================
 async def forward_live_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -548,8 +501,7 @@ async def forward_live_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_text)
     await update.message.reply_text("✅ আপনার মেসেজ সাপোর্টে পাঠানো হয়েছে।")
 
-
-# ===================== ADMIN COMMANDS (same as your code) =====================
+# ===================== ADMIN COMMANDS =====================
 async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
         return
@@ -560,7 +512,6 @@ async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = " ".join(context.args[1:]).strip()
     await context.bot.send_message(chat_id=user_id, text=f"💬 Support:\n{msg}")
     await update.message.reply_text("✅ Replied.")
-
 
 async def cmd_stopchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -575,7 +526,6 @@ async def cmd_stopchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
     await update.message.reply_text("✅ Stopped.")
-
 
 async def cmd_deliver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -607,7 +557,6 @@ async def cmd_deliver(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await update.message.reply_text("✅ Delivered.")
 
-
 # ===================== WEBHOOK =====================
 @api.on_event("startup")
 async def on_startup():
@@ -616,11 +565,9 @@ async def on_startup():
     await tg_app.bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
     await tg_app.start()
 
-
 @api.get("/")
 def home():
     return {"status": "running"}
-
 
 @api.post("/webhook")
 async def webhook(req: Request):
@@ -629,8 +576,7 @@ async def webhook(req: Request):
     await tg_app.process_update(update)
     return {"ok": True}
 
-
-# ===================== HANDLERS (IMPORTANT ORDER) =====================
+# ===================== HANDLERS =====================
 tg_app.add_handler(CommandHandler("start", start))
 tg_app.add_handler(CommandHandler("help", help_cmd))
 tg_app.add_handler(CommandHandler("endchat", endchat))
@@ -643,7 +589,6 @@ tg_app.add_handler(CommandHandler("reply", cmd_reply))
 tg_app.add_handler(CommandHandler("stopchat", cmd_stopchat))
 tg_app.add_handler(CommandHandler("deliver", cmd_deliver))
 
-# ✅ ConversationHandler must come BEFORE general callback handler
 checkout_conv = ConversationHandler(
     entry_points=[CallbackQueryHandler(buy_entry, pattern="^buy$")],
     states={
@@ -655,15 +600,8 @@ checkout_conv = ConversationHandler(
     fallbacks=[],
     allow_reentry=True,
 )
+
+# ✅ IMPORTANT ORDER:
 tg_app.add_handler(checkout_conv)
-
-# ✅ Now general callbacks (no buy/pay here)
 tg_app.add_handler(CallbackQueryHandler(on_button))
-
-# Live chat forwarding
-tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_live_chat), group=1)
-/ (root)
-  index.py
-  requirements.txt
-  Procfile
-web: uvicorn index:api --host 0.0.0.0 --port $PORTimport os
+tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_live_chat))
